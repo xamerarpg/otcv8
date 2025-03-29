@@ -1,32 +1,86 @@
-name: Build OTCv8 Windows
+name: Build - Windows
 
 on:
   workflow_dispatch:
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+    paths:
+      - 'src/**'
+  push:
+    paths:
+      - 'src/**'
+    branches:
+      - main
+
+env:
+  CMAKE_BUILD_PARALLEL_LEVEL: 2
+  MAKEFLAGS: '-j 2'
 
 jobs:
-  build:
-    runs-on: windows-latest
+  cancel-runs:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+    - name: Cancel Previous Runs
+      uses: styfle/cancel-workflow-action@0.9.1
+      with:
+        access_token: ${{ github.token }}
+
+  job:
+    if: ${{ github.event_name == 'push' || !github.event.pull_request.draft }}
+    name: ${{ matrix.os }}-${{ matrix.buildtype }}
+    runs-on: ${{ matrix.os }}
+
+    strategy:
+      matrix:
+        os: [windows-2022]
+        buildtype: [windows-release]
+        include:
+          - os: windows-2022
+            triplet: x64-windows
+            packages: >
+              sccache
 
     steps:
-    - name: Checkout code
-      uses: actions/checkout@v2
+      - name: Checkout repository
+        uses: actions/checkout@v4
 
-    - name: Install dependencies
-      run: |
-        choco install cmake --installargs 'ADD_CMAKE_TO_PATH=System' -y
-        choco install vcpkg -y
-        choco install python3 -y
-        git submodule update --init --recursive
+      - name: CCache
+        uses: hendrikmuhs/ccache-action@v1
+        with:
+          max-size: "1G"
+          variant: "sccache"
+          key: ccache-${{ matrix.os }}-${{ matrix.buildtype }}
+          restore-keys: |
+            ccache-${{ matrix.os }}
 
-    - name: Build project
-      run: |
-        mkdir build
-        cd build
-        cmake -DCMAKE_TOOLCHAIN_FILE=C:/ProgramData/chocolatey/lib/vcpkg/tools/vcpkg/scripts/buildsystems/vcpkg.cmake -DCMAKE_BUILD_TYPE=Release ..
-        cmake --build . --config Release
+      - name: Remove Windows pre-installed MySQL
+        if: contains(matrix.os, 'windows')
+        run: Remove-Item -Recurse -Force 'C:\mysql*'
 
-    - name: Upload artifact
-      uses: actions/upload-artifact@v2
-      with:
-        name: OTCv8-Windows
-        path: build/Release/
+      - name: Restore artifacts and install vcpkg
+        id: vcpkg-step
+        run: |
+          $json=Get-Content vcpkg.json -Raw | ConvertFrom-Json
+          $vcpkgCommitId=$json.'builtin-baseline'
+          Write-Host "vcpkg commit ID: $vcpkgCommitId"
+          echo "VCPKG_GIT_COMMIT_ID=$vcpkgCommitId" | Out-File -FilePath $env:GITHUB_ENV -Append
+
+      - name: Get vcpkg commit id from vcpkg.json
+        uses: lukka/run-vcpkg@v10
+
+      - name: Get latest CMake and ninja
+        uses: lukka/get-cmake@v1
+
+      - name: Run CMake and build project
+        uses: lukka/run-cmake@v10
+        with:
+          configurePreset: ${{ matrix.buildtype }}
+          buildPreset: ${{ matrix.buildtype }}
+
+      - name: Create and Upload Artifact
+        uses: actions/upload-artifact@v3
+        with:
+          name: otclient-${{ matrix.buildtype }}-${{ github.sha }}
+          path: |
+            ${{ github.workspace }}/otclient.exe
