@@ -1,0 +1,32 @@
+name: Build OTCv8 Windows
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: windows-latest
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v2
+
+    - name: Install dependencies
+      run: |
+        choco install cmake --installargs 'ADD_CMAKE_TO_PATH=System' -y
+        choco install vcpkg -y
+        choco install python3 -y
+        git submodule update --init --recursive
+
+    - name: Build project
+      run: |
+        mkdir build
+        cd build
+        cmake -DCMAKE_TOOLCHAIN_FILE=C:/ProgramData/chocolatey/lib/vcpkg/tools/vcpkg/scripts/buildsystems/vcpkg.cmake -DCMAKE_BUILD_TYPE=Release ..
+        cmake --build . --config Release
+
+    - name: Upload artifact
+      uses: actions/upload-artifact@v2
+      with:
+        name: OTCv8-Windows
+        path: build/Release/
