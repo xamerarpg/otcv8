@@ -26,7 +26,7 @@ jobs:
         cmake --build . --config Release
 
     - name: Upload artifact
-      uses: actions/upload-artifact@f6b1a5c6471ec2093921ab6d2913d6cda0c3ec75
+      uses: actions/upload-artifact@v2
       with:
         name: OTCv8-Windows
         path: build/Release/
