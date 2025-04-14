@@ -74,7 +74,7 @@ jobs:
           vcpkgGitCommitId: ${{ env.VCPKG_GIT_COMMIT_ID }}
 
       - name: Setup CMake 3.27.9
-        uses: lukka/get-cmake@v1
+        uses: lukka/get-cmake@v3
         with:
           cmakeVersion: '3.27.9'
 
