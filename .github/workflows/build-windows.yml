@@ -73,8 +73,11 @@ jobs:
           vcpkgGitURL: "https://github.com/microsoft/vcpkg.git"
           vcpkgGitCommitId: ${{ env.VCPKG_GIT_COMMIT_ID }}
 
-      - name: Get latest CMake and ninja
-        uses: lukka/get-cmake@main
+      - name: Setup CMake 3.27.9
+		uses: lukka/get-cmake@v1
+		with:
+		cmakeVersion: '3.27.9'
+
 
       - name:  Run CMake and build project
         uses: lukka/run-cmake@main
