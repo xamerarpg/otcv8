@@ -22,10 +22,10 @@ jobs:
     if: github.event_name == 'pull_request'
     runs-on: ubuntu-latest
     steps:
-    - name: Cancel Previous Runs
-      uses: styfle/cancel-workflow-action@0.9.1
-      with:
-        access_token: ${{ github.token }}
+      - name: Cancel Previous Runs
+        uses: styfle/cancel-workflow-action@0.9.1
+        with:
+          access_token: ${{ github.token }}
 
   job:
     if: ${{ github.event_name == 'push' || !github.event.pull_request.draft }}
@@ -74,12 +74,11 @@ jobs:
           vcpkgGitCommitId: ${{ env.VCPKG_GIT_COMMIT_ID }}
 
       - name: Setup CMake 3.27.9
-		uses: lukka/get-cmake@v1
-		with:
-		cmakeVersion: '3.27.9'
+        uses: lukka/get-cmake@v1
+        with:
+          cmakeVersion: '3.27.9'
 
-
-      - name:  Run CMake and build project
+      - name: Run CMake and build project
         uses: lukka/run-cmake@main
         with:
           configurePreset: ${{ matrix.buildtype }}
