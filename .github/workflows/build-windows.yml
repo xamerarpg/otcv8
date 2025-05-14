@@ -22,12 +22,12 @@ jobs:
     if: github.event_name == 'pull_request'
     runs-on: ubuntu-latest
     steps:
-    - name: Cancel Previous Runs
-      uses: styfle/cancel-workflow-action@0.9.1
-      with:
-        access_token: ${{ github.token }}
+      - name: Cancel Previous Runs
+        uses: styfle/cancel-workflow-action@0.9.1
+        with:
+          access_token: ${{ github.token }}
 
-  job:
+  build:
     if: ${{ github.event_name == 'push' || !github.event.pull_request.draft }}
     name: ${{ matrix.os }}-${{ matrix.buildtype }}
     runs-on: ${{ matrix.os }}
@@ -39,15 +39,21 @@ jobs:
         include:
           - os: windows-2022
             triplet: x64-windows
-            packages: >
-              sccache
+            packages: sccache
+
+    defaults:
+      run:
+        working-directory: ${{ github.workspace }}
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@main
+        uses: actions/checkout@v4
 
-      - name: CCache
-        uses: hendrikmuhs/ccache-action@main
+      - name: Set working directory
+        run: echo "Working in ${{ github.workspace }}"
+
+      - name: Setup CCache
+        uses: hendrikmuhs/ccache-action@v1
         with:
           max-size: "1G"
           variant: "sccache"
@@ -56,35 +62,36 @@ jobs:
             ccache-${{ matrix.os }}
 
       - name: Remove Windows pre-installed MySQL
-        if: contains( matrix.os, 'windows')
-        run: rm -r -fo C:/mysql*
+        if: contains(matrix.os, 'windows')
+        run: Remove-Item -Recurse -Force "C:\mysql*"
 
-      - name: Restore artifacts and install vcpkg
+      - name: Parse vcpkg.json and export VCPKG commit
         id: vcpkg-step
+        shell: pwsh
         run: |
-          $json=Get-Content vcpkg.json -Raw | ConvertFrom-Json
-          $vcpkgCommitId=$json.'builtin-baseline'
-          Write-Host "vcpkg commit ID: $vcpkgCommitId"
+          $json = Get-Content "${{ github.workspace }}/vcpkg.json" -Raw | ConvertFrom-Json
+          $vcpkgCommitId = $json.'builtin-baseline'
           echo "VCPKG_GIT_COMMIT_ID=$vcpkgCommitId" | Out-File -FilePath $env:GITHUB_ENV -Append
 
-      - name: Get vcpkg commit id from vcpkg.json
-        uses: lukka/run-vcpkg@main
+      - name: Install vcpkg from builtin-baseline
+        uses: lukka/run-vcpkg@v11
         with:
           vcpkgGitURL: "https://github.com/microsoft/vcpkg.git"
           vcpkgGitCommitId: ${{ env.VCPKG_GIT_COMMIT_ID }}
+          workingDirectory: ${{ github.workspace }}
 
-      - name: Get latest CMake and ninja
-        uses: lukka/get-cmake@main
+      - name: Get latest CMake and Ninja
+        uses: lukka/get-cmake@latest
 
-      - name:  Run CMake and build project
-        uses: lukka/run-cmake@main
+      - name: Run CMake and build
+        uses: lukka/run-cmake@v10
         with:
           configurePreset: ${{ matrix.buildtype }}
           buildPreset: ${{ matrix.buildtype }}
+          workingDirectory: ${{ github.workspace }}
 
-      - name: Create and Upload Artifact
-        uses: actions/upload-artifact@main
+      - name: Upload Build Artifact
+        uses: actions/upload-artifact@v4
         with:
           name: otclient-${{ matrix.buildtype }}-${{ github.sha }}
-          path: |
-            ${{ github.workspace }}/otclient.exe
+          path: ${{ github.workspace }}/otclient.exe
