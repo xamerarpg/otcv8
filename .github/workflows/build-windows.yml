@@ -27,7 +27,7 @@ jobs:
         with:
           access_token: ${{ github.token }}
 
-  build:
+  job:
     if: ${{ github.event_name == 'push' || !github.event.pull_request.draft }}
     name: ${{ matrix.os }}-${{ matrix.buildtype }}
     runs-on: ${{ matrix.os }}
@@ -39,20 +39,14 @@ jobs:
         include:
           - os: windows-2022
             triplet: x64-windows
-            packages: sccache
-
-    defaults:
-      run:
-        working-directory: ${{ github.workspace }}
+            packages: >
+              sccache
 
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Set working directory
-        run: echo "Working in ${{ github.workspace }}"
-
-      - name: Setup CCache
+      - name: CCache
         uses: hendrikmuhs/ccache-action@v1
         with:
           max-size: "1G"
@@ -67,31 +61,33 @@ jobs:
 
       - name: Parse vcpkg.json and export VCPKG commit
         id: vcpkg-step
-        shell: pwsh
+        working-directory: otcv8-main
         run: |
-          $json = Get-Content "${{ github.workspace }}/vcpkg.json" -Raw | ConvertFrom-Json
+          $json = Get-Content vcpkg.json -Raw | ConvertFrom-Json
           $vcpkgCommitId = $json.'builtin-baseline'
+          Write-Host "vcpkg commit ID: $vcpkgCommitId"
           echo "VCPKG_GIT_COMMIT_ID=$vcpkgCommitId" | Out-File -FilePath $env:GITHUB_ENV -Append
 
-      - name: Install vcpkg from builtin-baseline
+      - name: Get vcpkg commit id from vcpkg.json
         uses: lukka/run-vcpkg@v11
         with:
           vcpkgGitURL: "https://github.com/microsoft/vcpkg.git"
           vcpkgGitCommitId: ${{ env.VCPKG_GIT_COMMIT_ID }}
-          workingDirectory: ${{ github.workspace }}
+          workingDirectory: otcv8-main
 
       - name: Get latest CMake and Ninja
         uses: lukka/get-cmake@latest
 
-      - name: Run CMake and build
+      - name: Run CMake and build project
         uses: lukka/run-cmake@v10
         with:
           configurePreset: ${{ matrix.buildtype }}
           buildPreset: ${{ matrix.buildtype }}
-          workingDirectory: ${{ github.workspace }}
+          workingDirectory: otcv8-main
 
-      - name: Upload Build Artifact
+      - name: Create and Upload Artifact
         uses: actions/upload-artifact@v4
         with:
           name: otclient-${{ matrix.buildtype }}-${{ github.sha }}
-          path: ${{ github.workspace }}/otclient.exe
+          path: |
+            otcv8-main/otclient.exe
