@@ -23,7 +23,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Cancel Previous Runs
-        uses: styfle/cancel-workflow-action@0.9.1
+        uses: styfle/cancel-workflow-action@v0.9.1
         with:
           access_token: ${{ github.token }}
 
@@ -61,7 +61,6 @@ jobs:
 
       - name: Parse vcpkg.json and export VCPKG commit
         id: vcpkg-step
-        working-directory: otcv8-main
         run: |
           $json = Get-Content vcpkg.json -Raw | ConvertFrom-Json
           $vcpkgCommitId = $json.'builtin-baseline'
@@ -73,9 +72,8 @@ jobs:
         with:
           vcpkgGitURL: "https://github.com/microsoft/vcpkg.git"
           vcpkgGitCommitId: ${{ env.VCPKG_GIT_COMMIT_ID }}
-          workingDirectory: otcv8-main
 
-      - name: Get latest CMake and Ninja
+      - name: Get latest CMake and ninja
         uses: lukka/get-cmake@latest
 
       - name: Run CMake and build project
@@ -83,11 +81,10 @@ jobs:
         with:
           configurePreset: ${{ matrix.buildtype }}
           buildPreset: ${{ matrix.buildtype }}
-          workingDirectory: otcv8-main
 
       - name: Create and Upload Artifact
         uses: actions/upload-artifact@v4
         with:
           name: otclient-${{ matrix.buildtype }}-${{ github.sha }}
           path: |
-            otcv8-main/otclient.exe
+            otclient.exe
