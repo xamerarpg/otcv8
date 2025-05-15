@@ -3,10 +3,6 @@ name: Build - Windows
 
 on:
   workflow_dispatch:
-  pull_request:
-    types: [opened, synchronize, reopened, ready_for_review]
-    paths:
-      - 'src/**'
   push:
     paths:
       - 'src/**'
@@ -16,75 +12,49 @@ on:
 env:
   CMAKE_BUILD_PARALLEL_LEVEL: 2
   MAKEFLAGS: '-j 2'
+  VCPKG_ROOT: ${{ github.workspace }}/vcpkg
 
 jobs:
-  cancel-runs:
-    if: github.event_name == 'pull_request'
-    runs-on: ubuntu-latest
-    steps:
-      - name: Cancel Previous Runs
-        uses: styfle/cancel-workflow-action@v0.9.1
-        with:
-          access_token: ${{ github.token }}
-
-  job:
-    if: ${{ github.event_name == 'push' || !github.event.pull_request.draft }}
-    name: ${{ matrix.os }}-${{ matrix.buildtype }}
-    runs-on: ${{ matrix.os }}
-
-    strategy:
-      matrix:
-        os: [windows-2022]
-        buildtype: [windows-release]
-        include:
-          - os: windows-2022
-            triplet: x64-windows
-            packages: >
-              sccache
+  build-windows:
+    runs-on: windows-2022
+    name: Windows Build
 
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: CCache
+      - name: Setup CCache
         uses: hendrikmuhs/ccache-action@v1
         with:
           max-size: "1G"
-          variant: "sccache"
-          key: ccache-${{ matrix.os }}-${{ matrix.buildtype }}
-          restore-keys: |
-            ccache-${{ matrix.os }}
 
-      - name: Remove Windows pre-installed MySQL
-        if: contains(matrix.os, 'windows')
-        run: Remove-Item -Recurse -Force "C:\mysql*"
-
-      - name: Parse vcpkg.json and export VCPKG commit
-        id: vcpkg-step
+      - name: Install dependencies
+        shell: pwsh
         run: |
-          $json = Get-Content vcpkg.json -Raw | ConvertFrom-Json
-          $vcpkgCommitId = $json.'builtin-baseline'
-          Write-Host "vcpkg commit ID: $vcpkgCommitId"
-          echo "VCPKG_GIT_COMMIT_ID=$vcpkgCommitId" | Out-File -FilePath $env:GITHUB_ENV -Append
+          git clone https://github.com/microsoft/vcpkg.git $env:VCPKG_ROOT
+          cd $env:VCPKG_ROOT
+          .\bootstrap-vcpkg.bat
+          cd $env:GITHUB_WORKSPACE
 
-      - name: Get vcpkg commit id from vcpkg.json
-        uses: lukka/run-vcpkg@v11
+      - name: Install CMake + Ninja
+        uses: lukka/get-cmake@v3
         with:
-          vcpkgGitURL: "https://github.com/microsoft/vcpkg.git"
-          vcpkgGitCommitId: ${{ env.VCPKG_GIT_COMMIT_ID }}
+          cmakeVersion: 3.27.9
+          ninjaVersion: latest
 
-      - name: Get latest CMake and ninja
-        uses: lukka/get-cmake@latest
+      - name: Configure with CMake
+        run: |
+          cmake -S . -B build-windows-release `
+            -DCMAKE_BUILD_TYPE=RelWithDebInfo `
+            -DCMAKE_TOOLCHAIN_FILE=${env:VCPKG_ROOT}/scripts/buildsystems/vcpkg.cmake `
+            -DVCPKG_TARGET_TRIPLET=x64-windows-static `
+            -G "Ninja"
 
-      - name: Run CMake and build project
-        uses: lukka/run-cmake@v10
-        with:
-          configurePreset: ${{ matrix.buildtype }}
-          buildPreset: ${{ matrix.buildtype }}
+      - name: Build project
+        run: cmake --build build-windows-release
 
-      - name: Create and Upload Artifact
+      - name: Upload EXE
         uses: actions/upload-artifact@v4
         with:
-          name: otclient-${{ matrix.buildtype }}-${{ github.sha }}
-          path: |
-            otclient.exe
+          name: otclient-windows.exe
+          path: build-windows-release/otclient.exe
