@@ -21,7 +21,7 @@ jobs:
       uses: lukka/run-vcpkg@v11
       with:
         vcpkgDirectory: ${{ github.workspace }}/vcpkg
-        vcpkgGitCommitId: '38fdd2ab2b3743487c5373a9d12807d6d71b1f3f'
+        vcpkgGitCommitId: 'd26b755b4493d5d0b214b8c1cb2efac37caa24c1'
         vcpkgJsonGlob: '**/vcpkg.json'
         runVcpkgInstall: false
 
@@ -52,12 +52,11 @@ jobs:
 
     - name: Archive the executable
       run: |
-        mkdir "${{ github.workspace }}\otclient_build"
-        copy "build\windows-release\otclient.exe" "${{ github.workspace }}\otclient_build\"
+        mkdir -p ${{ github.workspace }}/otclient_build
+        copy build\windows-release\otclient.exe ${{ github.workspace }}\otclient_build\
 
     - name: Upload Artifacts
-      uses: actions/upload-artifact@v4
+      uses: actions/upload-artifact@v3
       with:
         name: otclient-executable
         path: ${{ github.workspace }}/otclient_build/otclient.exe
-        
