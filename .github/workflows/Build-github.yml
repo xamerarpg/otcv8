@@ -1,0 +1,62 @@
+name: Build OTCv8 on Windows
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  build-windows:
+    runs-on: windows-latest
+
+    env:
+      VCPKG_ROOT: ${{ github.workspace }}/vcpkg
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Install dependencies
+      uses: lukka/run-vcpkg@v11
+      with:
+        vcpkgDirectory: ${{ github.workspace }}/vcpkg
+        vcpkgGitCommitId: 'latest'
+        vcpkgJsonGlob: '**/vcpkg.json'
+        runVcpkgInstall: false
+
+    - name: Cache vcpkg binaries
+      uses: actions/cache@v3
+      with:
+        path: |
+          ${{ env.VCPKG_ROOT }}/installed
+          ${{ env.VCPKG_ROOT }}/buildtrees
+        key: vcpkg-${{ runner.os }}-${{ hashFiles('**/vcpkg.json') }}
+        restore-keys: vcpkg-${{ runner.os }}-
+
+    - name: Bootstrap vcpkg
+      run: .\vcpkg\bootstrap-vcpkg.bat
+
+    - name: Fix gni-to-cmake.py manually (if needed)
+      run: |
+        $path = "vcpkg\downloads\gni-to-cmake.py"
+        if (!(Test-Path $path)) {
+          echo "print('Fake gni-to-cmake.py')" > $path
+        }
+
+    - name: Configure CMake (windows-release preset)
+      run: cmake --preset windows-release
+
+    - name: Build
+      run: cmake --build --preset windows-release
+
+    - name: Archive the executable
+      run: |
+        mkdir -p ${{ github.workspace }}/otclient_build
+        copy "path\\to\\otclient.exe" ${{ github.workspace }}/otclient_build/
+
+    - name: Upload Artifacts
+      uses: actions/upload-artifact@v3
+      with:
+        name: otclient-executable
+        path: ${{ github.workspace }}/otclient_build/otclient.exe
