@@ -52,11 +52,12 @@ jobs:
 
     - name: Archive the executable
       run: |
-        mkdir -p ${{ github.workspace }}/otclient_build
-        copy "path\\to\\otclient.exe" ${{ github.workspace }}/otclient_build/
+        mkdir "${{ github.workspace }}\otclient_build"
+        copy "build\windows-release\otclient.exe" "${{ github.workspace }}\otclient_build\"
 
     - name: Upload Artifacts
       uses: actions/upload-artifact@v3
       with:
         name: otclient-executable
         path: ${{ github.workspace }}/otclient_build/otclient.exe
+        
